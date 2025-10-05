@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from api.models import Reservation
+from api.models import Card, Subscription, CustomUser, Reservation
 
 class ReservationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,3 +31,15 @@ class ReservationSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Not enough seats in hall.")
 
         return data
+
+
+class CardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Card
+        fields = ['id', 'type', 'benefits', 'bonus_multiplier', 'price']
+
+class UserLoyaltySerializer(serializers.ModelSerializer):
+    card = CardSerializer(read_only=True)
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'email', 'bonus_points', 'card']

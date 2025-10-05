@@ -147,3 +147,9 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=90),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# LOYALTY
+LOYALTY_POINT_VALUE = 0.01   # 1 бонус = 0.1 валюти (тобто 10 бонусів = 1.0)
+# thresholds (кількість балів або сума) для апгрейду картки
+LOYALTY_PREMIUM_THRESHOLD = 1000   # для апгрейду до premium
+LOYALTY_CORPORATE_THRESHOLD = 5000

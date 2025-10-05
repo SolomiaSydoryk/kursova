@@ -1,5 +1,5 @@
 from decimal import Decimal
-
+from django.utils import timezone
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
@@ -13,15 +13,14 @@ class CustomUser(AbstractUser):
     # name/surname використовуємо first_name/last_name від AbstractUser
     age = models.PositiveIntegerField(null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
-    email = models.EmailField(blank=True, null=True)  # AbstractUser вже має email, але дублювати не треба
+    email = models.EmailField(blank=True, null=True)
     photo = models.ImageField(upload_to='user_photos/', blank=True, null=True)
     bonus_points = models.IntegerField(default=0)
 
-    # зв'язки (nullable): subscription і card
     subscription = models.ForeignKey('Subscription', on_delete=models.SET_NULL, null=True, blank=True, related_name='customers')
     card = models.ForeignKey('Card', on_delete=models.SET_NULL, null=True, blank=True, related_name='customers')
 
-    def str(self):
+    def __str__(self):
         return self.get_full_name() or self.username
 
 
@@ -38,9 +37,8 @@ class Card(models.Model):
         (TYPE_CORPORATE, 'Corporate'),
     ]
 
-    # поля згідно діаграми
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_STANDARD)
-    benefits = models.TextField(blank=True)          # опис переваг (наприклад: "доступ до басейну")
+    benefits = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     bonus_multiplier = models.FloatField(default=1.0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -63,13 +61,13 @@ class Subscription(models.Model):
     ]
 
     type = models.CharField(max_length=20, choices=TYPE_CHOICES)
-    duration_days = models.PositiveIntegerField()   # тривалість в днях (для single може бути 1)
+    duration_days = models.PositiveIntegerField()   # тривалість в днях
     price = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, default='active')  # active/inactive
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def str(self):
+    def __str__(self):
         return f"{self.get_type_display()} ({self.duration_days}d) - {self.status}"
 
 
@@ -77,7 +75,6 @@ class Subscription(models.Model):
 # Trainer
 # -----------------------
 class Trainer(models.Model):
-    # діаграма: trainerId, name, surname, specialization, age, experienceYears, phone
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100, blank=True)
     specialization = models.CharField(max_length=200, blank=True)
@@ -85,7 +82,7 @@ class Trainer(models.Model):
     experience_years = models.PositiveIntegerField(default=0)
     phone = models.CharField(max_length=20, blank=True)
 
-    def str(self):
+    def __str__(self):
         return f"{self.first_name} {self.last_name}".strip()
 
 
@@ -96,12 +93,12 @@ class Hall(models.Model):
     # hallId implicit (id)
     name = models.CharField(max_length=200)
     room_number = models.CharField(max_length=50, blank=True)
-    event_type = models.CharField(max_length=100, blank=True)  # напр.: Fitness, Pool, Dance
+    event_type = models.CharField(max_length=100, blank=True)  # Fitness, Pool, Dance
     capacity = models.PositiveIntegerField(default=0)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     is_active = models.BooleanField(default=True)
 
-    def str(self):
+    def __str__(self):
         return f"{self.name} ({self.room_number})"
 
 def list_available_sections(self):
@@ -122,8 +119,8 @@ class Section(models.Model):
     sport_type = models.CharField(max_length=100, blank=True)         # football, yoga, fitness, swimming
     free_seats = models.PositiveIntegerField(default=0)
 
-    def str(self):
-        return f"{self.sport_type} - {self.preparation_level} (Hall: {self.hall.name})"
+    def __str__(self):
+        return f"{self.sport_type} - {self.preparation_level} (Hall: {self.hall.name} {self.hall.room_number})"
 
     def check_age_eligibility(self, user_age):
         if user_age is None:
@@ -153,13 +150,12 @@ class TimeSlot(models.Model):
         unique_together = ('day', 'month', 'year', 'start_time', 'end_time')
         ordering = ['year', 'month', 'day', 'start_time']
 
-    def str(self):
+    def __str__(self):
         return f"{self.day}.{self.month}.{self.year} {self.start_time.strftime('%H:%M')}-{self.end_time.strftime('%H:%M')}"
 
     def check_availability(self, hall=None, section=None):
         """Повертає True якщо на цей timeslot є вільні місця (з урахуванням hall/section)."""
         if section:
-            # підрахувати підтверджені броні для секції
             confirmed = Reservation.objects.filter(section=section, timeslot=self, reservation_status=Reservation.STATUS_CONFIRMED).count()
             return confirmed < section.free_seats
         if hall:
@@ -190,7 +186,6 @@ class Reservation(models.Model):
         (PAYMENT_ERROR, 'Error'),
     ]
 
-# Поля згідно діаграми
     customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reservations')
     hall = models.ForeignKey(Hall, on_delete=models.CASCADE, related_name='reservations')
     section = models.ForeignKey(Section, on_delete=models.SET_NULL, null=True, blank=True, related_name='reservations')
@@ -198,25 +193,24 @@ class Reservation(models.Model):
     reservation_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     payment_status = models.CharField(max_length=20, choices=PAYMENT_CHOICES, default=PAYMENT_UNPAID)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    seats = models.PositiveIntegerField(default=1)  # скільки місць бронюється
+    seats = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
+    points_awarded = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-created_at']
 
-    def str(self):
+    def __str__(self):
         return f"Res#{self.id} {self.customer} at {self.timeslot}"
 
     def clean(self):
-        """Валідація перед збереженням (відповідає діаграмі)."""
-        # Перевірка вікового обмеження
+        """Валідація перед збереженням"""
         if self.section and self.customer.age is not None:
             if self.section.min_age and self.customer.age < self.section.min_age:
                 raise ValidationError("Користувач занадто молодий для цієї секції.")
             if self.section.max_age and self.customer.age > self.section.max_age:
                 raise ValidationError("Користувач занадто дорослий для цієї секції.")
 
-        # Перевірка вільних місць
         if self.section:
             capacity = self.section.free_seats
             confirmed = Reservation.objects.filter(section=self.section, timeslot=self.timeslot, reservation_status=self.STATUS_CONFIRMED).exclude(pk=self.pk).count()
@@ -263,6 +257,9 @@ class Notification(models.Model):
     date_time = models.DateTimeField(auto_now_add=True)
     customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
     is_read = models.BooleanField(default=False)
+    send_at = models.DateTimeField(null=True, blank=True, help_text="When to actually send this notification")
+    is_sent = models.BooleanField(default=False)
+    sent_at = models.DateTimeField(null=True, blank=True)
 
-    def str(self):
+    def __str__(self):
         return f"{self.get_notification_type_display()} -> {self.customer}"
