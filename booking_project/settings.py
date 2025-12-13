@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     'api',
 ]
@@ -58,6 +59,14 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'booking_project.urls'
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Додаткові налаштування CORS для розробки
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+CORS_ALLOW_CREDENTIALS = True
 
 TEMPLATES = [
     {
@@ -152,4 +161,3 @@ SIMPLE_JWT = {
 LOYALTY_POINT_VALUE = 0.01   # 1 бонус = 0.1 валюти (тобто 10 бонусів = 1.0)
 # thresholds (кількість балів або сума) для апгрейду картки
 LOYALTY_PREMIUM_THRESHOLD = 1000   # для апгрейду до premium
-LOYALTY_CORPORATE_THRESHOLD = 5000

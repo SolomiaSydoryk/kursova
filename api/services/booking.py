@@ -1,4 +1,4 @@
-from api.models import Reservation, Section, Hall, Notification
+from api.models import Reservation, Section, Hall, Notification, SectionSchedule
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -9,58 +9,131 @@ class BookingService:
     @staticmethod
     def create_booking(customer, hall=None, section=None, timeslot=None, seats=1):
         """
-        Створює бронювання для користувача.
+        Створює бронювання для користувача з урахуванням розкладу секцій.
         """
+
+        if not timeslot:
+            raise ValidationError("Необхідно вибрати часовий слот.")
 
         if not hall and not section:
             raise ValidationError("Потрібно вказати або зал, або секцію.")
 
+        # Якщо бронювання секції — валідації
         if section:
-            if section.min_age and customer.age < section.min_age:
-                raise ValidationError("Користувач занадто молодий для цієї секції.")
-            if section.max_age and customer.age > section.max_age:
-                raise ValidationError("Користувач занадто дорослий для цієї секції.")
+            # Секцію можна бронювати тільки якщо вона доступна в цей час
+            if not SectionSchedule.objects.filter(section=section, timeslot=timeslot).exists():
+                raise ValidationError("Секція не доступна на цей час.")
 
-        if section:
+            # Забираємо зал з секції (для блокування)
+            hall = section.hall
+
+            # Перевірка ліміту секції
             confirmed = Reservation.objects.filter(
-                section=section, timeslot=timeslot,
+                section=section,
+                timeslot=timeslot,
                 reservation_status=Reservation.STATUS_CONFIRMED
             ).count()
-            if confirmed + seats > section.free_seats:
+
+            if confirmed + seats > section.seats_limit:
                 raise ValidationError("Немає достатньо місць у секції.")
-        else:
-            confirmed = Reservation.objects.filter(
-                hall=hall, timeslot=timeslot,
-                reservation_status=Reservation.STATUS_CONFIRMED
-            ).count()
-            if confirmed + seats > hall.capacity:
-                raise ValidationError("Немає достатньо місць у залі.")
 
+        # Якщо бронювання залу — враховуємо секційні розклади
+        if hall and not section:
+            # Якщо є секція на цей день (незалежно від часу) — не можна бронювати зал
+            # Перевіряємо чи є будь-які секції на цей день (day, month, year)
+            if SectionSchedule.objects.filter(
+                section__hall=hall,
+                timeslot__day=timeslot.day,
+                timeslot__month=timeslot.month,
+                timeslot__year=timeslot.year
+            ).exists():
+                raise ValidationError("У цей день у залі є секції — зал недоступний.")
+
+            # Перевірка чи зал вже заброньований на цей день (бронюємо весь зал на весь день)
+            # Перевіряємо чи є будь-яке бронювання (confirmed або pending) на цей timeslot
+            existing_booking = Reservation.objects.filter(
+                hall=hall,
+                timeslot=timeslot
+            ).exclude(reservation_status=Reservation.STATUS_CANCELLED).first()
+
+            if existing_booking:
+                raise ValidationError("Зал вже заброньований на цей день.")
+
+        # Перевірка чи користувач вже має бронювання на цей час
+        # Один запис на конкретний час для користувача
         exists = Reservation.objects.filter(
-            customer=customer, timeslot=timeslot, hall=hall, section=section
+            customer=customer,
+            timeslot=timeslot
         ).exists()
+
         if exists:
             raise ValidationError("У вас вже є бронювання на цей час.")
 
+        # Створення бронювання
+        # Для залів - статус PENDING (потребує підтвердження адміністратора)
+        # Для секцій - статус CONFIRMED (автоматичне підтвердження)
+        initial_status = Reservation.STATUS_PENDING if (hall and not section) else Reservation.STATUS_CONFIRMED
+        
         booking = Reservation.objects.create(
             customer=customer,
             hall=hall,
             section=section,
             timeslot=timeslot,
             seats=seats,
-            reservation_status=Reservation.STATUS_CONFIRMED
+            reservation_status=initial_status
         )
 
+
+        return booking
+
+    @staticmethod
+    def create_reminder_notification(reservation: Reservation):
+        """
+        Створює нагадування для бронювання після успішної оплати.
+        Викликається тільки після підтвердження оплати.
+        """
+        if not reservation:
+            return None
+
+        timeslot = reservation.timeslot
+        section = reservation.section
+        hall = reservation.hall
+
+        # Нагадування
         event_dt = datetime.combine(timeslot.date, timeslot.start_time)
         event_dt = timezone.make_aware(event_dt, timezone.get_current_timezone())
         send_at = event_dt - timedelta(days=1)
 
-        msg = f"Нагадування: у вас бронювання #{booking.id} у залі {booking.hall or booking.section} {event_dt.strftime('%Y-%m-%d %H:%M')}."
+        if section:
+            sport_type_map = {
+                'fitness': 'Фітнес',
+                'swimming': 'Плавання',
+                'yoga': 'Йога',
+            }
+            level_map = {
+                'beginner': 'Початковий',
+                'intermediate': 'Середній',
+                'advanced': 'Просунутий',
+            }
+            sport_type = sport_type_map.get(section.sport_type, section.sport_type.capitalize() if section.sport_type else "")
+            preparation_level = level_map.get(section.preparation_level, section.preparation_level.capitalize() if section.preparation_level else "")
+            section_name = f"{sport_type} ({preparation_level})"
+            hall_name = hall.name if hall else "невідомий зал"
+            time_str = timeslot.start_time.strftime('%H:%M')
+            date_str = timeslot.date.strftime('%d.%m.%Y')
+            msg = (
+                f"Нагадування: У вас є бронювання секції {section_name} о {time_str} {date_str} у залі {hall_name}."
+            )
+        else:
+            hall_name = hall.name if hall else "невідомий зал"
+            date_str = timeslot.date.strftime('%d.%m.%Y')
+            msg = (
+                f"Нагадування: У вас є бронювання залу {hall_name} на {date_str}."
+            )
+
         create_and_notify(
-            booking.customer,
+            reservation.customer,
             Notification.TYPE_REMINDER,
             msg,
             send_at=send_at
         )
-
-        return booking

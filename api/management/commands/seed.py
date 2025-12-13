@@ -1,80 +1,98 @@
-from decimal import Decimal
-from datetime import time
 from django.core.management.base import BaseCommand
-from api.models import Card, Subscription, Trainer, Hall, Section, TimeSlot, CustomUser, Reservation
+from api.models import Hall, Section, Trainer, CustomUser, Card, Subscription
+from decimal import Decimal
 
 class Command(BaseCommand):
-    help = "Seed DB with initial test data (idempotent). Run: python manage.py seed"
+    help = "Seed initial data for demo catalog (halls, sections, trainers, users, cards, subscriptions)"
 
-    def handle(self, *args, **options):
+    def handle(self, *args, **kwargs):
+        # --- Trainers ---
+        trainers = {
+            "Anna White": Trainer.objects.create(first_name="Anna", last_name="White", specialization="Yoga", experience_years=5),
+            "John Snow": Trainer.objects.create(first_name="John", last_name="Snow", specialization="Fitness", experience_years=4),
+            "Kate Miller": Trainer.objects.create(first_name="Kate", last_name="Miller", specialization="Swimming", experience_years=7),
+        }
+
+        # --- Halls ---
+        fitness_hall = Hall.objects.create(
+            name="Fitness Hall", event_type="Fitness", capacity=20, price=Decimal("25.00")
+        )
+        aqua_center = Hall.objects.create(
+            name="Aqua Center", event_type="Swimming", capacity=15, price=Decimal("30.00")
+        )
+
+        # --- Sections ---
+        Section.objects.create(
+            hall=fitness_hall,
+            trainer=trainers["Anna White"],
+            min_age=12,
+            sport_type="yoga",
+            preparation_level="beginner",
+            seats_limit=15,
+            price=Decimal("15.00")
+        )
+
+        Section.objects.create(
+            hall=fitness_hall,
+            trainer=trainers["John Snow"],
+            min_age=18,
+            sport_type="fitness",
+            preparation_level="advanced",
+            seats_limit=20,
+            price=Decimal("20.00")
+        )
+
+        Section.objects.create(
+            hall=aqua_center,
+            trainer=trainers["Kate Miller"],
+            min_age=6,
+            sport_type="swimming",
+            preparation_level="beginner",
+            seats_limit=10,
+            price=Decimal("12.00")
+        )
+
+        Section.objects.create(
+            hall=aqua_center,
+            trainer=trainers["Kate Miller"],
+            min_age=12,
+            sport_type="swimming",
+            preparation_level="intermediate",
+            seats_limit=15,
+            price=Decimal("18.00")
+        )
+
         # --- Cards ---
-        cards = [
-            ('standard', 'Standard access', Decimal('0.00'), 1.0),
-            ('premium', 'Free pool access', Decimal('50.00'), 1.5),
-            ('corporate', 'Corporate discounts', Decimal('100.00'), 2.0),
-        ]
-        for ctype, benefits, price, mult in cards:
-            Card.objects.update_or_create(
-                type=ctype,
-                defaults={'benefits': benefits, 'price': price, 'bonus_multiplier': mult}
-            )
+        standard = Card.objects.create(type="standard", benefits="Basic discounts", price=Decimal("0.00"), bonus_multiplier=0.01)
+        premium = Card.objects.create(type="premium", benefits="50% discount on swimming, 1% bonus from discounted amount", price=Decimal("150.00"), bonus_multiplier=0.01)
 
         # --- Subscriptions ---
-        subs = [
-            ('single', 1, Decimal('10.00'), 'one-time entry'),
-            ('monthly', 30, Decimal('100.00'), 'monthly pass'),
-            ('corporate', 30, Decimal('500.00'), 'corporate package'),
-        ]
-        for stype, duration, price, desc in subs:
-            Subscription.objects.update_or_create(
-                type=stype,
-                defaults={'duration_days': duration, 'price': price, 'description': desc, 'status': 'active'}
-            )
+        monthly = Subscription.objects.create(type="monthly", duration_days=30, price=Decimal("60.00"), description="Місячний абонемент")
+        single = Subscription.objects.create(type="single", duration_days=1, price=Decimal("10.00"), description="Разове відвідування")
 
-        # --- Trainer ---
-        trainer, _ = Trainer.objects.get_or_create(
-            first_name='Ivan', last_name='Ivanov',
-            defaults={'specialization': 'Fitness', 'experience_years': 5}
+        # --- Users ---
+        user1 = CustomUser.objects.create_user(
+            username="demouser1",
+            email="demouser1@example.com",
+            password="test1234",
+            first_name="Oleh",
+            last_name="Koval",
+            age=20,
+            card=standard,
+            subscription=single,
+            bonus_points=120,
         )
 
-        # --- Hall ---
-        hall, _ = Hall.objects.get_or_create(
-            name='Main Hall', room_number='A1',
-            defaults={'event_type': 'Fitness', 'capacity': 30, 'price': Decimal('100.00'), 'is_active': True}
+        user2 = CustomUser.objects.create_user(
+            username="demouser2",
+            email="demouser2@example.com",
+            password="test1234",
+            first_name="Sofia",
+            last_name="Ivanova",
+            age=35,
+            card=premium,
+            subscription=monthly,
+            bonus_points=450,
         )
 
-        # --- Section ---
-        section, _ = Section.objects.get_or_create(
-            hall=hall, sport_type='yoga', preparation_level='beginner',
-            defaults={'name': 'Yoga Group', 'min_age': 16, 'max_age': 60, 'price': Decimal('20.00'), 'free_seats': 15, 'trainer': trainer}
-        )
-
-        # --- TimeSlot ---
-        timeslot, _ = TimeSlot.objects.get_or_create(
-            day=2, month=10, month_name='October', year=2025,
-            start_time=time(18, 0), end_time=time(19, 0)
-        )
-
-        # --- User (safely create or get) ---
-        user, created = CustomUser.objects.get_or_create(
-            username='testuser',
-            defaults={'email': 'test@example.com', 'age': 25}
-        )
-        if created:
-            user.set_password('pass1234')
-            user.save()
-
-        # --- Reservation (idempotent: one reservation per user/hall/section/timeslot) ---
-        res, created = Reservation.objects.get_or_create(
-            customer=user, hall=hall, section=section, timeslot=timeslot,
-            defaults={
-                'reservation_status': Reservation.STATUS_CONFIRMED,
-                'payment_status': Reservation.PAYMENT_PAID,
-                'price': section.price,
-                'seats': 1
-            }
-        )
-
-        self.stdout.write(self.style.SUCCESS('Seed finished.'))
-        self.stdout.write(f'User: {user.username} (created={created})')
-        self.stdout.write(f'Reservation id: {res.id} (created={created})')
+        self.stdout.write(self.style.SUCCESS("✅ Demo catalog and users seeded successfully!"))

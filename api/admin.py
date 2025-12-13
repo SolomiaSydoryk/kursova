@@ -2,8 +2,19 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     CustomUser, Card, Subscription, Trainer,
-    Hall, Section, TimeSlot, Reservation, Notification
+    Hall, Section, TimeSlot, Reservation, Notification, SectionSchedule
 )
+
+
+class SectionScheduleInline(admin.TabularInline):
+    model = SectionSchedule
+    extra = 1
+
+
+@admin.register(Section)
+class SectionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'hall', 'sport_type', 'preparation_level', 'trainer', 'seats_limit')
+    inlines = [SectionScheduleInline]
 
 
 @admin.register(Card)
@@ -26,4 +37,4 @@ class CustomUserAdmin(BaseUserAdmin):
     )
 
 
-admin.site.register([Trainer, Hall, Section, TimeSlot, Reservation, Notification])
+admin.site.register([Trainer, Hall, TimeSlot, Reservation, Notification])

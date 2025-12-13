@@ -20,6 +20,10 @@ class CardPaymentStrategy(PaymentStrategy):
             # після успішної оплати нараховуємо бонуси
             LoyaltyService.award_points_for_reservation(reservation)
 
+        # Створюємо нагадування тільки після успішної оплати (поза транзакцією)
+        from api.services.booking import BookingService
+        BookingService.create_reminder_notification(reservation)
+
         return f"Оплата карткою успішна. Сума: {reservation.price}"
 
 
@@ -30,6 +34,10 @@ class CashPaymentStrategy(PaymentStrategy):
             reservation.save(update_fields=['payment_status'])
 
             LoyaltyService.award_points_for_reservation(reservation)
+
+        # Створюємо нагадування тільки після успішної оплати (поза транзакцією)
+        from api.services.booking import BookingService
+        BookingService.create_reminder_notification(reservation)
 
         return f"Оплата готівкою успішна. Сума: {reservation.price}"
 
@@ -49,10 +57,16 @@ class BonusPaymentStrategy(PaymentStrategy):
 
         # якщо після бонусів залишок = 0 → повна оплата
         if remaining <= 0:
-            reservation.payment_status = Reservation.PAYMENT_PAID
-            reservation.save(update_fields=['payment_status'])
+            with transaction.atomic():
+                reservation.payment_status = Reservation.PAYMENT_PAID
+                reservation.save(update_fields=['payment_status'])
 
-            LoyaltyService.award_points_for_reservation(reservation)
+                LoyaltyService.award_points_for_reservation(reservation)
+            
+            # Створюємо нагадування тільки після успішної оплати (поза транзакцією)
+            from api.services.booking import BookingService
+            BookingService.create_reminder_notification(reservation)
+            
             return f"Оплата повністю бонусами успішна (списано {points_to_use})."
 
         if fallback == "card":

@@ -9,13 +9,28 @@ from django.contrib.auth.models import AbstractUser
 # -----------------------
 # Custom user (Customer)
 # -----------------------
+def user_photo_upload_path(instance, filename):
+    """Генерує унікальний шлях для фото користувача"""
+    import uuid
+    import os
+    # Отримуємо розширення файлу
+    ext = filename.split('.')[-1] if '.' in filename else 'jpg'
+    # Генеруємо унікальну назву файлу
+    new_filename = f"{uuid.uuid4()}.{ext}"
+    print(f"=== user_photo_upload_path CALLED ===")
+    print(f"Original filename: {filename}")
+    print(f"New filename: {new_filename}")
+    print(f"Full path: user_photos/{new_filename}")
+    return f'user_photos/{new_filename}'
+
+
 class CustomUser(AbstractUser):
     # name/surname використовуємо first_name/last_name від AbstractUser
     age = models.PositiveIntegerField(null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
-    photo = models.ImageField(upload_to='user_photos/', blank=True, null=True)
-    bonus_points = models.IntegerField(default=0)
+    photo = models.ImageField(upload_to=user_photo_upload_path, blank=True, null=True)
+    bonus_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
 
     subscription = models.ForeignKey('Subscription', on_delete=models.SET_NULL, null=True, blank=True, related_name='customers')
     card = models.ForeignKey('Card', on_delete=models.SET_NULL, null=True, blank=True, related_name='customers')
@@ -30,20 +45,18 @@ class CustomUser(AbstractUser):
 class Card(models.Model):
     TYPE_STANDARD = 'standard'
     TYPE_PREMIUM = 'premium'
-    TYPE_CORPORATE = 'corporate'
     TYPE_CHOICES = [
         (TYPE_STANDARD, 'Standard'),
         (TYPE_PREMIUM, 'Premium'),
-        (TYPE_CORPORATE, 'Corporate'),
     ]
 
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_STANDARD)
     benefits = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    bonus_multiplier = models.FloatField(default=1.0)
+    bonus_multiplier = models.FloatField(default=0.01)  # Множник для нарахування бонусів (0.01 = 1%)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def str(self):
+    def __str__(self):
         return f"{self.get_type_display()} (x{self.bonus_multiplier})"
 
 
@@ -53,15 +66,13 @@ class Card(models.Model):
 class Subscription(models.Model):
     TYPE_SINGLE = 'single'
     TYPE_MONTHLY = 'monthly'
-    TYPE_CORPORATE = 'corporate'
     TYPE_CHOICES = [
         (TYPE_SINGLE, 'Single'),
         (TYPE_MONTHLY, 'Monthly'),
-        (TYPE_CORPORATE, 'Corporate'),
     ]
 
     type = models.CharField(max_length=20, choices=TYPE_CHOICES)
-    duration_days = models.PositiveIntegerField()   # тривалість в днях
+    duration_days = models.PositiveIntegerField()  
     price = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, default='active')  # active/inactive
@@ -69,6 +80,48 @@ class Subscription(models.Model):
 
     def __str__(self):
         return f"{self.get_type_display()} ({self.duration_days}d) - {self.status}"
+
+
+# -----------------------
+# UserSubscription (Придбані абонементи користувачів)
+# -----------------------
+class UserSubscription(models.Model):
+    """Модель для зберігання придбаних абонементів користувачів"""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='user_subscriptions')
+    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name='user_subscriptions')
+    purchased_at = models.DateTimeField(auto_now_add=True)
+    start_date = models.DateField()  
+    end_date = models.DateField()  
+    is_active = models.BooleanField(default=True) 
+    is_used = models.BooleanField(default=False)  # Для разових абонементів - чи використаний
+    used_at = models.DateTimeField(null=True, blank=True)  # Коли був використаний (для разових)
+    
+    class Meta:
+        ordering = ['-purchased_at']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.subscription.get_type_display()} ({self.start_date} to {self.end_date})"
+    
+    def is_valid(self):
+        """Перевіряє, чи абонемент дійсний на даний момент"""
+        today = timezone.now().date()
+        if not self.is_active:
+            return False
+        if self.subscription.type == Subscription.TYPE_SINGLE:
+            # Для разового - перевіряємо, чи не використаний і чи не минув термін
+            return not self.is_used and self.end_date >= today
+        else:
+            # Для місячного - перевіряємо тільки термін дії
+            # start_date може бути в минулому (якщо абонемент куплений раніше), тому перевіряємо тільки end_date
+            return today <= self.end_date
+    
+    def can_be_used(self):
+        """Перевіряє, чи можна використати абонемент"""
+        if not self.is_valid():
+            return False
+        if self.subscription.type == Subscription.TYPE_SINGLE:
+            return not self.is_used
+        return True  # Місячний можна використовувати багато разів
 
 
 # -----------------------
@@ -85,7 +138,6 @@ class Trainer(models.Model):
     def __str__(self):
         return f"{self.first_name} {self.last_name}".strip()
 
-
 # -----------------------
 # Hall
 # -----------------------
@@ -93,7 +145,7 @@ class Hall(models.Model):
     # hallId implicit (id)
     name = models.CharField(max_length=200)
     room_number = models.CharField(max_length=50, blank=True)
-    event_type = models.CharField(max_length=100, blank=True)  # Fitness, Pool, Dance
+    event_type = models.CharField(max_length=100, blank=True)  
     capacity = models.PositiveIntegerField(default=0)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     is_active = models.BooleanField(default=True)
@@ -106,21 +158,75 @@ def list_available_sections(self):
 
 
 # -----------------------
+# TimeSlot
+# -----------------------
+class TimeSlot(models.Model):
+    hall = models.ForeignKey(Hall, on_delete=models.CASCADE, null=True, blank=True)
+
+    day = models.PositiveIntegerField()
+    month = models.PositiveIntegerField()
+    month_name = models.CharField(max_length=20, blank=True)
+    year = models.PositiveIntegerField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    class Meta:
+        unique_together = ('hall', 'day', 'month', 'year', 'start_time', 'end_time')
+        ordering = ['year', 'month', 'day', 'start_time']
+
+    def __str__(self):
+        return f"{self.day}.{self.month}.{self.year} {self.start_time}-{self.end_time} ({self.hall.name})"
+
+    @property
+    def date(self):
+        """Повертає date об'єкт для зручності."""
+        from datetime import date
+        return date(self.year, self.month, self.day)
+
+    def check_availability(self, hall=None, section=None):
+        """Повертає True якщо на цей timeslot є вільні місця (з урахуванням hall/section)."""
+        if section:
+            confirmed = Reservation.objects.filter(section=section, timeslot=self, reservation_status=Reservation.STATUS_CONFIRMED).count()
+            return confirmed < section.seats_limit
+        if hall:
+            # Для залів - перевіряємо чи є будь-яке бронювання (бронюємо весь зал)
+            existing = Reservation.objects.filter(
+                hall=hall, 
+                timeslot=self, 
+                reservation_status__in=[Reservation.STATUS_CONFIRMED, Reservation.STATUS_PENDING]
+            ).exists()
+            return not existing
+        return True
+
+
+# -----------------------
 # Section
 # -----------------------
 class Section(models.Model):
-    # sectionId implicit (id)
+    LEVEL_CHOICES = [
+        ('beginner', 'Beginner'),
+        ('intermediate', 'Intermediate'),
+        ('advanced', 'Advanced'),
+    ]
+
+    SPORT_CHOICES = [
+        ('fitness', 'Fitness'),
+        ('swimming', 'Swimming'),
+        ('yoga', 'Yoga'),
+    ]
+
     hall = models.ForeignKey(Hall, on_delete=models.CASCADE, related_name='sections')
     trainer = models.ForeignKey(Trainer, on_delete=models.SET_NULL, null=True, blank=True, related_name='sections')
     min_age = models.PositiveIntegerField(null=True, blank=True)
     max_age = models.PositiveIntegerField(null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    preparation_level = models.CharField(max_length=100, blank=True)  # beginner/intermediate/advanced
-    sport_type = models.CharField(max_length=100, blank=True)         # football, yoga, fitness, swimming
-    free_seats = models.PositiveIntegerField(default=0)
+    preparation_level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='beginner')
+    sport_type = models.CharField(max_length=50, choices=SPORT_CHOICES, default='fitness')
+    seats_limit = models.PositiveIntegerField(default=0)
 
     def __str__(self):
-        return f"{self.sport_type} - {self.preparation_level} (Hall: {self.hall.name} {self.hall.room_number})"
+        return f"{self.sport_type} ({self.preparation_level}) — {self.hall.name}"
+
 
     def check_age_eligibility(self, user_age):
         if user_age is None:
@@ -135,33 +241,19 @@ class Section(models.Model):
         return self
 
 
-# -----------------------
-# TimeSlot
-# -----------------------
-class TimeSlot(models.Model):
-    day = models.PositiveIntegerField()
-    month = models.PositiveIntegerField()
-    month_name = models.CharField(max_length=20, blank=True)
-    year = models.PositiveIntegerField()
-    start_time = models.TimeField()
-    end_time = models.TimeField()
+class SectionSchedule(models.Model):
+    section = models.ForeignKey(
+        Section, on_delete=models.CASCADE, related_name='schedules'
+    )
+    timeslot = models.ForeignKey(
+        TimeSlot, on_delete=models.CASCADE, related_name='section_schedules'
+    )
 
     class Meta:
-        unique_together = ('day', 'month', 'year', 'start_time', 'end_time')
-        ordering = ['year', 'month', 'day', 'start_time']
+        unique_together = ('section', 'timeslot')
 
     def __str__(self):
-        return f"{self.day}.{self.month}.{self.year} {self.start_time.strftime('%H:%M')}-{self.end_time.strftime('%H:%M')}"
-
-    def check_availability(self, hall=None, section=None):
-        """Повертає True якщо на цей timeslot є вільні місця (з урахуванням hall/section)."""
-        if section:
-            confirmed = Reservation.objects.filter(section=section, timeslot=self, reservation_status=Reservation.STATUS_CONFIRMED).count()
-            return confirmed < section.free_seats
-        if hall:
-            confirmed = Reservation.objects.filter(hall=hall, timeslot=self, reservation_status=Reservation.STATUS_CONFIRMED).count()
-            return confirmed < hall.capacity
-        return True
+        return f"{self.section} @ {self.timeslot}"
 
 
 # -----------------------
@@ -196,6 +288,8 @@ class Reservation(models.Model):
     seats = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     points_awarded = models.BooleanField(default=False)
+    # Поле для відстеження використаного абонемента
+    used_subscription = models.ForeignKey('UserSubscription', on_delete=models.SET_NULL, null=True, blank=True, related_name='reservations')
 
     class Meta:
         ordering = ['-created_at']
@@ -205,22 +299,21 @@ class Reservation(models.Model):
 
     def clean(self):
         """Валідація перед збереженням"""
-        if self.section and self.customer.age is not None:
-            if self.section.min_age and self.customer.age < self.section.min_age:
-                raise ValidationError("Користувач занадто молодий для цієї секції.")
-            if self.section.max_age and self.customer.age > self.section.max_age:
-                raise ValidationError("Користувач занадто дорослий для цієї секції.")
-
         if self.section:
-            capacity = self.section.free_seats
+            capacity = self.section.seats_limit
             confirmed = Reservation.objects.filter(section=self.section, timeslot=self.timeslot, reservation_status=self.STATUS_CONFIRMED).exclude(pk=self.pk).count()
             if confirmed + self.seats > capacity:
                 raise ValidationError("Недостатньо вільних місць у секції на цей час.")
         else:
-            capacity = self.hall.capacity
-            confirmed = Reservation.objects.filter(hall=self.hall, timeslot=self.timeslot, reservation_status=self.STATUS_CONFIRMED).exclude(pk=self.pk).count()
-            if confirmed + self.seats > capacity:
-                raise ValidationError("Недостатньо вільних місць у залі на цей час.")
+            # Для залів - перевіряємо чи вже є бронювання на цей день (бронюємо весь зал)
+            existing = Reservation.objects.filter(
+                hall=self.hall, 
+                timeslot=self.timeslot, 
+                reservation_status__in=[self.STATUS_CONFIRMED, self.STATUS_PENDING]
+            ).exclude(pk=self.pk).exists()
+            
+            if existing:
+                raise ValidationError("Зал вже заброньований на цей день.")
 
     def save(self, *args, **kwargs):
         """Безпечне збереження з транзакцією для уникнення race conditions."""
@@ -229,13 +322,18 @@ class Reservation(models.Model):
             if self.section:
                 qs = Reservation.objects.select_for_update().filter(section=self.section, timeslot=self.timeslot, reservation_status=self.STATUS_CONFIRMED).exclude(pk=self.pk)
                 confirmed = qs.count()
-                if confirmed + self.seats > self.section.free_seats:
+                if confirmed + self.seats > self.section.seats_limit:
                     raise ValidationError("Недостатньо вільних місць (під час збереження).")
             else:
-                qs = Reservation.objects.select_for_update().filter(hall=self.hall, timeslot=self.timeslot, reservation_status=self.STATUS_CONFIRMED).exclude(pk=self.pk)
-                confirmed = qs.count()
-                if confirmed + self.seats > self.hall.capacity:
-                    raise ValidationError("Недостатньо вільних місць (під час збереження).")
+                # Для залів - перевіряємо чи вже є бронювання на цей день
+                existing = Reservation.objects.select_for_update().filter(
+                    hall=self.hall, 
+                    timeslot=self.timeslot, 
+                    reservation_status__in=[self.STATUS_CONFIRMED, self.STATUS_PENDING]
+                ).exclude(pk=self.pk).exists()
+                
+                if existing:
+                    raise ValidationError("Зал вже заброньований на цей день (під час збереження).")
             super().save(*args, **kwargs)
 
 
