@@ -69,6 +69,7 @@ const BookingsHistoryPage = () => {
     if (booking.payment_status === 'error') {
       return 'Помилка';
     }
+    // Для unpaid показуємо "Не оплачено"
     return 'Не оплачено';
   };
 
@@ -106,9 +107,10 @@ const BookingsHistoryPage = () => {
         color: '#FAF0E6', 
       };
     }
+    // "Не оплачено" має колір egyptianEarth
     if (status === 'Не оплачено') {
       return {
-        backgroundColor: '#BB6830',
+        backgroundColor: '#BB6830', // egyptianEarth
         color: '#FAF0E6',
       };
     }
@@ -166,9 +168,12 @@ const BookingsHistoryPage = () => {
   // Отримання назви виду спорту 
   const getSportTypeLabel = (sportType) => {
     const labels = {
-      'fitness': 'Фітнес',
-      'swimming': 'Плавання',
-      'yoga': 'Йога',
+      fitness: 'Фітнес',
+      swimming: 'Плавання',
+      pilates: 'Пілатес',
+      volleyball: 'Волейбол',
+      tennis: 'Теніс',
+      yoga: 'Йога',
     };
     return labels[sportType] || sportType;
   };
@@ -246,7 +251,17 @@ const BookingsHistoryPage = () => {
                           </Typography>
                           {booking.hall_event_type && (
                             <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
-                              Вид спорту: {booking.hall_event_type.charAt(0).toUpperCase() + booking.hall_event_type.slice(1).toLowerCase()}
+                              Вид спорту: {(() => {
+                                const labels = {
+                                  fitness: 'Фітнес',
+                                  swimming: 'Плавання',
+                                  pilates: 'Пілатес',
+                                  volleyball: 'Волейбол',
+                                  tennis: 'Теніс',
+                                  yoga: 'Йога',
+                                };
+                                return labels[booking.hall_event_type] || booking.hall_event_type;
+                              })()}
                             </Typography>
                           )}
                           <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>

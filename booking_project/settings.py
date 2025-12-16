@@ -160,4 +160,4 @@ SIMPLE_JWT = {
 # LOYALTY
 LOYALTY_POINT_VALUE = 0.01   # 1 бонус = 0.1 валюти (тобто 10 бонусів = 1.0)
 # thresholds (кількість балів або сума) для апгрейду картки
-LOYALTY_PREMIUM_THRESHOLD = 1000   # для апгрейду до premium
+LOYALTY_PREMIUM_THRESHOLD = 2000   # для апгрейду до premium

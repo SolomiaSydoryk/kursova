@@ -66,7 +66,17 @@ const HallCard = ({ hall }) => {
 
         {hall.event_type && (
           <Chip
-            label={hall.event_type}
+            label={(() => {
+              const labels = {
+                fitness: 'Фітнес',
+                swimming: 'Плавання',
+                pilates: 'Пілатес',
+                volleyball: 'Волейбол',
+                tennis: 'Теніс',
+                yoga: 'Йога',
+              };
+              return labels[hall.event_type] || hall.event_type;
+            })()}
             size="small"
             color="primary"
             variant="outlined"

@@ -6,8 +6,8 @@ from api.views import (
     RedeemPointsView, SectionTimeslotsView, SectionScheduleViewSet,
     HallViewSet, SectionViewSet, TrainerViewSet, AvailableTimeslotsView,
     RegisterView, ProfileView, MyReservationsView, NotificationsView,
-    NotificationReadView, MarkAllNotificationsReadView, EmailLoginView,
-    SubscriptionsListView, SubscriptionPurchaseView, MySubscriptionsView
+    EmailLoginView, SubscriptionsListView, SubscriptionPurchaseView, MySubscriptionsView,
+    AllReservationsView, UpdateReservationStatusView, CreateTimeslotView
 )
 
 router = DefaultRouter()
@@ -29,10 +29,13 @@ urlpatterns = [
     # Бронювання
     path('bookings/create/', BookingCreateView.as_view(), name='booking_create'),
     path('bookings/my/', MyReservationsView.as_view(), name='my_reservations'),
+    path('bookings/all/', AllReservationsView.as_view(), name='all_reservations'),  # Тільки для адмінів
+    path('bookings/<int:reservation_id>/status/', UpdateReservationStatusView.as_view(), name='update_reservation_status'),  # Тільки для адмінів
     
     # Timeslots
     path('sections/<int:section_id>/timeslots/', SectionTimeslotsView.as_view(), name='section_timeslots'),
     path('available-timeslots/', AvailableTimeslotsView.as_view(), name='available_timeslots'),
+    path('timeslots/create/', CreateTimeslotView.as_view(), name='create_timeslot'),  # Тільки для адмінів
     
     # Лояльність
     path('loyalty/me/', MyLoyaltyView.as_view(), name='my_loyalty'),
@@ -40,8 +43,6 @@ urlpatterns = [
     
     # Сповіщення
     path('notifications/', NotificationsView.as_view(), name='notifications'),
-    path('notifications/<int:notification_id>/read/', NotificationReadView.as_view(), name='notification_read'),
-    path('notifications/mark-all-read/', MarkAllNotificationsReadView.as_view(), name='mark_all_notifications_read'),
     
     # Абонементи
     path('subscriptions/', SubscriptionsListView.as_view(), name='subscriptions_list'),

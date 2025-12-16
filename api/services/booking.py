@@ -1,7 +1,5 @@
 from api.models import Reservation, Section, Hall, Notification, SectionSchedule
 from django.core.exceptions import ValidationError
-from django.utils import timezone
-from datetime import datetime, timedelta
 from api.services.notification import create_and_notify
 
 
@@ -99,21 +97,21 @@ class BookingService:
         section = reservation.section
         hall = reservation.hall
 
-        # Нагадування
-        event_dt = datetime.combine(timeslot.date, timeslot.start_time)
-        event_dt = timezone.make_aware(event_dt, timezone.get_current_timezone())
-        send_at = event_dt - timedelta(days=1)
+        # Нагадування - відображається в UI одразу після створення
 
         if section:
             sport_type_map = {
                 'fitness': 'Фітнес',
                 'swimming': 'Плавання',
+                'pilates': 'Пілатес',
+                'volleyball': 'Волейбол',
+                'tennis': 'Теніс',
                 'yoga': 'Йога',
             }
             level_map = {
-                'beginner': 'Початковий',
-                'intermediate': 'Середній',
-                'advanced': 'Просунутий',
+                'beginner': 'Початковий рівень',
+                'intermediate': 'Середній рівень',
+                'advanced': 'Просунутий рівень',
             }
             sport_type = sport_type_map.get(section.sport_type, section.sport_type.capitalize() if section.sport_type else "")
             preparation_level = level_map.get(section.preparation_level, section.preparation_level.capitalize() if section.preparation_level else "")
@@ -134,6 +132,5 @@ class BookingService:
         create_and_notify(
             reservation.customer,
             Notification.TYPE_REMINDER,
-            msg,
-            send_at=send_at
+            msg
         )

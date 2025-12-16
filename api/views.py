@@ -94,6 +94,9 @@ class BookingCreateView(APIView):
                         user_subscription.is_active = False  # Деактивуємо, щоб він зник з профілю
                         user_subscription.save()
                     
+                    # Нараховуємо бонуси після успішної оплати абонементом
+                    LoyaltyService.award_points_for_reservation(booking)
+                    
                     # Створюємо нагадування після успішної оплати абонементом
                     # BookingService вже імпортований на верхньому рівні
                     BookingService.create_reminder_notification(booking)
@@ -194,21 +197,128 @@ class RedeemPointsView(APIView):
         return Response(result, status=status.HTTP_200_OK)
 
 
+class CreateTimeslotView(APIView):
+    """Створення timeslot для секції (тільки для адміністраторів)"""
+    permission_classes = [permissions.IsAdminUser]
+    
+    def post(self, request):
+        try:
+            section_id = request.data.get('section_id')
+            day = request.data.get('day')
+            month = request.data.get('month')
+            year = request.data.get('year')
+            start_time = request.data.get('start_time')
+            end_time = request.data.get('end_time')
+            
+            if not all([section_id, day, month, year, start_time, end_time]):
+                return Response(
+                    {'error': 'Всі поля обов\'язкові'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            section = Section.objects.get(id=section_id)
+            hall = section.hall
+            
+            # Перевірка чи такий timeslot вже існує
+            existing_timeslot = TimeSlot.objects.filter(
+                hall=hall,
+                day=day,
+                month=month,
+                year=year,
+                start_time=start_time,
+                end_time=end_time
+            ).first()
+            
+            if existing_timeslot:
+                # Перевірка чи вже є SectionSchedule з цим timeslot для цієї секції
+                if SectionSchedule.objects.filter(section=section, timeslot=existing_timeslot).exists():
+                    return Response(
+                        {'error': 'Такий розклад вже існує для цієї секції'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                timeslot = existing_timeslot
+            else:
+                # Створюємо новий timeslot
+                from datetime import date
+                date_obj = date(year, month, day)
+                month_names = {
+                    1: 'Січень', 2: 'Лютий', 3: 'Березень', 4: 'Квітень',
+                    5: 'Травень', 6: 'Червень', 7: 'Липень', 8: 'Серпень',
+                    9: 'Вересень', 10: 'Жовтень', 11: 'Листопад', 12: 'Грудень'
+                }
+                month_name = month_names.get(month, '')
+                
+                timeslot = TimeSlot.objects.create(
+                    hall=hall,
+                    day=day,
+                    month=month,
+                    month_name=month_name,
+                    year=year,
+                    start_time=start_time,
+                    end_time=end_time
+                )
+            
+            # Перевірка перетинів часу з існуючими розкладами секції
+            existing_schedules = SectionSchedule.objects.filter(section=section).select_related('timeslot')
+            for schedule in existing_schedules:
+                existing_ts = schedule.timeslot
+                # Перевіряємо чи той самий день
+                if (existing_ts.day == day and existing_ts.month == month and existing_ts.year == year):
+                    # Перевіряємо перетини часу
+                    if not (timeslot.end_time <= existing_ts.start_time or timeslot.start_time >= existing_ts.end_time):
+                        return Response(
+                            {'error': f'Час перетинається з існуючим розкладом: {existing_ts.start_time}-{existing_ts.end_time}'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+            
+            # Створюємо SectionSchedule
+            schedule = SectionSchedule.objects.create(
+                section=section,
+                timeslot=timeslot
+            )
+            
+            serializer = SectionScheduleSerializer(schedule)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Section.DoesNotExist:
+            return Response(
+                {'error': 'Секція не знайдена'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
 class SectionScheduleViewSet(viewsets.ModelViewSet):
-    queryset = SectionSchedule.objects.all()
     serializer_class = SectionScheduleSerializer
     permission_classes = [permissions.IsAdminUser]
-
-
-
-class HallViewSet(viewsets.ReadOnlyModelViewSet):
-    """Список та деталі залів (тільки читання для клієнтів)"""
-    queryset = Hall.objects.filter(is_active=True)
-    serializer_class = HallSerializer
-    permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        queryset = Hall.objects.filter(is_active=True)
+        queryset = SectionSchedule.objects.all().select_related('section', 'timeslot', 'timeslot__hall')
+        section_id = self.request.query_params.get('section')
+        if section_id:
+            queryset = queryset.filter(section_id=section_id)
+        return queryset
+
+
+
+class HallViewSet(viewsets.ModelViewSet):
+    """CRUD операції для залів"""
+    queryset = Hall.objects.all()
+    serializer_class = HallSerializer
+    
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
+    
+    def get_queryset(self):
+        if not self.request.user.is_staff:
+            queryset = Hall.objects.filter(is_active=True)
+        else:
+            queryset = Hall.objects.all()
         event_type = self.request.query_params.get('event_type', None)
         capacity = self.request.query_params.get('capacity', None)
         
@@ -229,11 +339,15 @@ class HallViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
 
-class SectionViewSet(viewsets.ReadOnlyModelViewSet):
-    """Список та деталі секцій з фільтрацією"""
+class SectionViewSet(viewsets.ModelViewSet):
+    """CRUD операції для секцій"""
     queryset = Section.objects.select_related('hall', 'trainer').all()
     serializer_class = SectionSerializer
-    permission_classes = [permissions.AllowAny]
+    
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
     
     def get_serializer_context(self):
         """Додаємо request до context для доступу до користувача в serializer"""
@@ -243,6 +357,10 @@ class SectionViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_queryset(self):
         queryset = Section.objects.select_related('hall', 'trainer').all()
+        
+        # Для адмінів показуємо всі секції, для інших - тільки з активних залів
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(hall__is_active=True)
         
         # Фільтри
         sport_type = self.request.query_params.get('sport_type', None)
@@ -530,46 +648,9 @@ class NotificationsView(APIView):
             customer=request.user
         ).order_by('-date_time')
         
-        unread_count = notifications.filter(is_read=False).count()
         serializer = NotificationSerializer(notifications, many=True)
         
-        return Response({
-            'notifications': serializer.data,
-            'unread_count': unread_count
-        })
-
-
-class NotificationReadView(APIView):
-    """Позначити сповіщення як прочитане"""
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def patch(self, request, notification_id):
-        try:
-            notification = Notification.objects.get(
-                id=notification_id,
-                customer=request.user
-            )
-            notification.is_read = True
-            notification.save()
-            return Response({'message': 'Сповіщення позначено як прочитане'})
-        except Notification.DoesNotExist:
-            return Response(
-                {'error': 'Сповіщення не знайдено'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-
-class MarkAllNotificationsReadView(APIView):
-    """Позначити всі сповіщення як прочитані"""
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def patch(self, request):
-        Notification.objects.filter(
-            customer=request.user,
-            is_read=False
-        ).update(is_read=True)
-        
-        return Response({'message': 'Всі сповіщення позначено як прочитані'})
+        return Response(serializer.data)
 
 
 class SubscriptionsListView(APIView):
@@ -643,3 +724,81 @@ class MySubscriptionsView(APIView):
         
         serializer = UserSubscriptionSerializer(valid_subscriptions, many=True)
         return Response(serializer.data)
+
+
+class AllReservationsView(APIView):
+    """Список всіх бронювань (тільки для адміністраторів)"""
+    permission_classes = [permissions.IsAdminUser]
+    
+    def get(self, request):
+        reservations = Reservation.objects.all().select_related(
+            'customer', 'hall', 'section', 'timeslot'
+        ).order_by('-created_at')
+        
+        serializer = ReservationSerializer(reservations, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+class UpdateReservationStatusView(APIView):
+    """Оновлення статусу бронювання (тільки для адміністраторів)"""
+    permission_classes = [permissions.IsAdminUser]
+    
+    def patch(self, request, reservation_id):
+        try:
+            reservation = Reservation.objects.get(id=reservation_id)
+            new_status = request.data.get('reservation_status')
+            
+            if new_status not in [Reservation.STATUS_CONFIRMED, Reservation.STATUS_CANCELLED]:
+                return Response(
+                    {'error': 'Невірний статус'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Оновлюємо статус
+            reservation.reservation_status = new_status
+            reservation.save()
+            
+            # Створюємо сповіщення для користувача
+            from api.services.notification import create_and_notify
+            from api.models import Notification
+            
+            if new_status == Reservation.STATUS_CONFIRMED:
+                # Якщо це оплата готівкою на місці - встановлюємо payment_status = PAID і нараховуємо бонуси
+                was_unpaid = reservation.payment_status == Reservation.PAYMENT_UNPAID
+                if was_unpaid:
+                    reservation.payment_status = Reservation.PAYMENT_PAID
+                    reservation.save(update_fields=['payment_status'])
+                    
+                    # Нараховуємо бонуси після підтвердження оплати на місці
+                    if not reservation.points_awarded:
+                        LoyaltyService.award_points_for_reservation(reservation)
+                    
+                    # Створюємо нагадування після підтвердження оплати на місці
+                    from api.services.booking import BookingService
+                    BookingService.create_reminder_notification(reservation)
+                
+                # Формуємо повідомлення залежно від типу бронювання
+                if reservation.section:
+                    message = f"Ваше бронювання секції {reservation.section} на {reservation.timeslot.date.strftime('%d.%m.%Y')} підтверджено адміністратором."
+                else:
+                    message = f"Ваше бронювання залу {reservation.hall.name} на {reservation.timeslot.date.strftime('%d.%m.%Y')} підтверджено адміністратором."
+                create_and_notify(
+                    reservation.customer,
+                    Notification.TYPE_REMINDER,
+                    message
+                )
+            elif new_status == Reservation.STATUS_CANCELLED:
+                message = f"Ваше бронювання залу {reservation.hall.name} на {reservation.timeslot.date.strftime('%d.%m.%Y')} відхилено адміністратором."
+                create_and_notify(
+                    reservation.customer,
+                    Notification.TYPE_REMINDER,
+                    message
+                )
+            
+            serializer = ReservationSerializer(reservation, context={'request': request})
+            return Response(serializer.data)
+        except Reservation.DoesNotExist:
+            return Response(
+                {'error': 'Бронювання не знайдено'},
+                status=status.HTTP_404_NOT_FOUND
+            )

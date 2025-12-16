@@ -13,11 +13,15 @@ export const sectionService = {
     return response.data;
   },
 
-  // Отримати доступні таймслоти для секції
-  getAvailableTimeslots: async (sectionId) => {
-    const response = await api.get('/available-timeslots/', {
-      params: { section_id: sectionId },
-    });
+  // Створити секцію
+  create: async (sectionData) => {
+    const response = await api.post('/sections/', sectionData);
+    return response.data;
+  },
+
+  // Оновити секцію
+  update: async (id, sectionData) => {
+    const response = await api.patch(`/sections/${id}/`, sectionData);
     return response.data;
   },
 };

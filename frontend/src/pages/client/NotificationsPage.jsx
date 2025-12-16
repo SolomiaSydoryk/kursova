@@ -8,7 +8,7 @@ import {
   CardContent,
   CircularProgress,
 } from '@mui/material';
-import { ArrowBack, Notifications as NotificationsIcon } from '@mui/icons-material';
+import { ArrowBack } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { notificationService } from '../../services/notificationService';
 import { colors } from '../../theme/colors';
@@ -25,7 +25,8 @@ const NotificationsPage = () => {
   const loadNotifications = async () => {
     try {
       const data = await notificationService.getNotifications();
-      setNotifications(data.notifications || []);
+      // API повертає масив напряму, а не об'єкт з полем notifications
+      setNotifications(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error loading notifications:', err);
     } finally {

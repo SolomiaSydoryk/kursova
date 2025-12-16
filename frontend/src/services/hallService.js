@@ -13,11 +13,15 @@ export const hallService = {
     return response.data;
   },
 
-  // Отримати доступні таймслоти для залу
-  getAvailableTimeslots: async (hallId) => {
-    const response = await api.get('/available-timeslots/', {
-      params: { hall_id: hallId },
-    });
+  // Створити зал
+  create: async (hallData) => {
+    const response = await api.post('/halls/', hallData);
+    return response.data;
+  },
+
+  // Оновити зал
+  update: async (id, hallData) => {
+    const response = await api.patch(`/halls/${id}/`, hallData);
     return response.data;
   },
 };

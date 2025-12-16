@@ -53,20 +53,23 @@ const HallFilters = ({ filters, onChange }) => {
             <MenuItem value="" sx={{ fontSize: '0.875rem' }}>
               Всі види спорту
             </MenuItem>
-            <MenuItem value="Fitness" sx={{ fontSize: '0.875rem' }}>
+            <MenuItem value="fitness" sx={{ fontSize: '0.875rem' }}>
               Фітнес
             </MenuItem>
-            <MenuItem value="Swimming" sx={{ fontSize: '0.875rem' }}>
+            <MenuItem value="swimming" sx={{ fontSize: '0.875rem' }}>
               Плавання
             </MenuItem>
-            <MenuItem value="Basketball" sx={{ fontSize: '0.875rem' }}>
-              Баскетбол
+            <MenuItem value="pilates" sx={{ fontSize: '0.875rem' }}>
+              Пілатес
             </MenuItem>
-            <MenuItem value="Yoga" sx={{ fontSize: '0.875rem' }}>
+            <MenuItem value="volleyball" sx={{ fontSize: '0.875rem' }}>
+              Волейбол
+            </MenuItem>
+            <MenuItem value="tennis" sx={{ fontSize: '0.875rem' }}>
+              Теніс
+            </MenuItem>
+            <MenuItem value="yoga" sx={{ fontSize: '0.875rem' }}>
               Йога
-            </MenuItem>
-            <MenuItem value="Dance" sx={{ fontSize: '0.875rem' }}>
-              Танці
             </MenuItem>
           </Select>
         </FormControl>

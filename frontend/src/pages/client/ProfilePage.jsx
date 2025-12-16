@@ -124,17 +124,15 @@ const ProfilePage = () => {
             <Typography variant="body2" color="text.secondary">
               {user.email}
             </Typography>
-            {user.card && (
-              <Chip
-                label={formatCardType(user.card.type)}
-                size="small"
-                sx={{ 
-                  mt: 1,
-                  backgroundColor: user.card.type === 'premium' ? '#BB6830' : '#1F5A4D', // egyptianEarth для Premium, emeraldGreen для Standard
-                  color: '#FAF0E6',
-                }}
-              />
-            )}
+            <Chip
+              label={user.card ? formatCardType(user.card.type) : 'Standard'}
+              size="small"
+              sx={{ 
+                mt: 1,
+                backgroundColor: user.card?.type === 'premium' ? '#BB6830' : '#1F5A4D', // egyptianEarth для Premium, emeraldGreen для Standard
+                color: '#FAF0E6',
+              }}
+            />
           </Box>
           <Button
             variant="outlined"
@@ -173,11 +171,9 @@ const ProfilePage = () => {
                 <Typography variant="h4" color="primary">
                   {user.bonus_points || 0}
                 </Typography>
-                {user.card && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    Картка: {formatCardType(user.card.type)}
-                  </Typography>
-                )}
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Картка: {user.card ? formatCardType(user.card.type) : 'Standard'}
+                </Typography>
               </CardContent>
             </Card>
           </Grid>

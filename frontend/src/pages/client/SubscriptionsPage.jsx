@@ -54,7 +54,6 @@ const SubscriptionsPage = () => {
     const labels = {
       'single': 'Разовий',
       'monthly': 'Місячний',
-      'corporate': 'Корпоративний',
     };
     return labels[type] || type;
   };

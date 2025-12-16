@@ -60,6 +60,9 @@ const SectionCard = ({ section }) => {
     const labels = {
       fitness: 'Фітнес',
       swimming: 'Плавання',
+      pilates: 'Пілатес',
+      volleyball: 'Волейбол',
+      tennis: 'Теніс',
       yoga: 'Йога',
     };
     return labels[sportType] || sportType;
@@ -117,7 +120,7 @@ const SectionCard = ({ section }) => {
           {getSportLabel(section.sport_type)}
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 2, mb: 1, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center'}}>
+        <Box sx={{ display: 'flex', gap: 0.5, mb: 1, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center'}}>
           <Chip
             label={getLevelLabel(section.preparation_level)}
             size="small"
@@ -253,7 +256,7 @@ const SectionCard = ({ section }) => {
             color: 'text.secondary',
           }}
         >
-          Вільних місць: {section.available_seats || section.seats_limit}
+          Загальна кількість місць: {section.available_seats || section.seats_limit}
         </Typography>
       </CardContent>
 

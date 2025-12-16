@@ -142,10 +142,19 @@ class Trainer(models.Model):
 # Hall
 # -----------------------
 class Hall(models.Model):
+    EVENT_TYPE_CHOICES = [
+        ('fitness', 'Фітнес'),
+        ('swimming', 'Плавання'),
+        ('pilates', 'Пілатес'),
+        ('volleyball', 'Волейбол'),
+        ('tennis', 'Теніс'),
+        ('yoga', 'Йога'),
+    ]
+    
     # hallId implicit (id)
     name = models.CharField(max_length=200)
     room_number = models.CharField(max_length=50, blank=True)
-    event_type = models.CharField(max_length=100, blank=True)  
+    event_type = models.CharField(max_length=100, choices=EVENT_TYPE_CHOICES, blank=True)  
     capacity = models.PositiveIntegerField(default=0)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     is_active = models.BooleanField(default=True)
@@ -204,15 +213,18 @@ class TimeSlot(models.Model):
 # -----------------------
 class Section(models.Model):
     LEVEL_CHOICES = [
-        ('beginner', 'Beginner'),
-        ('intermediate', 'Intermediate'),
-        ('advanced', 'Advanced'),
+        ('beginner', 'Початковий'),
+        ('intermediate', 'Середній'),
+        ('advanced', 'Просунутий'),
     ]
 
     SPORT_CHOICES = [
-        ('fitness', 'Fitness'),
-        ('swimming', 'Swimming'),
-        ('yoga', 'Yoga'),
+        ('fitness', 'Фітнес'),
+        ('swimming', 'Плавання'),
+        ('pilates', 'Пілатес'),
+        ('volleyball', 'Волейбол'),
+        ('tennis', 'Теніс'),
+        ('yoga', 'Йога'),
     ]
 
     hall = models.ForeignKey(Hall, on_delete=models.CASCADE, related_name='sections')
@@ -354,10 +366,6 @@ class Notification(models.Model):
     message = models.TextField()
     date_time = models.DateTimeField(auto_now_add=True)
     customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
-    is_read = models.BooleanField(default=False)
-    send_at = models.DateTimeField(null=True, blank=True, help_text="When to actually send this notification")
-    is_sent = models.BooleanField(default=False)
-    sent_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.get_notification_type_display()} -> {self.customer}"

@@ -15,6 +15,9 @@ class ReservationSerializer(serializers.ModelSerializer):
     timeslot_date = serializers.DateField(source='timeslot.date', read_only=True)
     timeslot_start_time = serializers.TimeField(source='timeslot.start_time', read_only=True)
     timeslot_end_time = serializers.TimeField(source='timeslot.end_time', read_only=True)
+    customer_first_name = serializers.CharField(source='customer.first_name', read_only=True)
+    customer_last_name = serializers.CharField(source='customer.last_name', read_only=True)
+    customer_email = serializers.CharField(source='customer.email', read_only=True)
     
     class Meta:
         model = Reservation
@@ -29,12 +32,7 @@ class ReservationSerializer(serializers.ModelSerializer):
         return None
 
     def validate(self, data):
-        user = self.context['request'].user
-        section = data.get('section')
-        hall = data.get('hall')
-        timeslot = data.get('timeslot')
-        seats = data.get('seats', 1)
-
+        # Валідація виконується в BookingService.create_booking
         return data
 
 
@@ -51,6 +49,11 @@ class UserLoyaltySerializer(serializers.ModelSerializer):
 
 
 class SectionScheduleSerializer(serializers.ModelSerializer):
+    timeslot_date = serializers.DateField(source='timeslot.date', read_only=True)
+    timeslot_start_time = serializers.TimeField(source='timeslot.start_time', read_only=True)
+    timeslot_end_time = serializers.TimeField(source='timeslot.end_time', read_only=True)
+    hall_name = serializers.CharField(source='timeslot.hall.name', read_only=True)
+    
     class Meta:
         model = SectionSchedule
         fields = '__all__'

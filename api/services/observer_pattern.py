@@ -1,11 +1,13 @@
 """
 Observer Pattern для системи сповіщень.
-Дозволяє підписуватися на події та отримувати сповіщення.
+Дозволяє підписуватися на події створення сповіщень та обробляти їх через різні канали.
 """
 from abc import ABC, abstractmethod
 from typing import List
-from api.models import Notification, CustomUser
-from api.services.notification import NotificationService, EmailNotifier, SMSNotifier, LogNotifier
+from api.models import Notification
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Observer(ABC):
@@ -17,93 +19,71 @@ class Observer(ABC):
         pass
 
 
-class EmailObserver(Observer):
-    """Спостерігач, який відправляє сповіщення на email"""
-    
-    def __init__(self):
-        self.notifier = EmailNotifier()
-    
-    def update(self, notification: Notification):
-        """Відправити сповіщення на email"""
-        self.notifier.send(notification)
-
-
-class SMSObserver(Observer):
-    """Спостерігач, який відправляє сповіщення через SMS"""
-    
-    def __init__(self):
-        self.notifier = SMSNotifier()
+class UIObserver(Observer):
+    """
+    Спостерігач для UI.
+    Сповіщення вже зберігається в БД і автоматично відображається через API,
+    тому цей спостерігач просто логує подію.
+    """
     
     def update(self, notification: Notification):
-        """Відправити сповіщення через SMS"""
-        self.notifier.send(notification)
+        """Логує створення сповіщення для UI"""
+        logger.info(
+            "[UI] Notification created for %s (%s): %s",
+            notification.customer,
+            notification.notification_type,
+            notification.message
+        )
 
 
 class LogObserver(Observer):
     """Спостерігач, який логує сповіщення"""
     
-    def __init__(self):
-        self.notifier = LogNotifier()
-    
     def update(self, notification: Notification):
         """Залогувати сповіщення"""
-        self.notifier.send(notification)
+        logger.info(
+            "[LOG] Notification for %s (%s): %s",
+            notification.customer,
+            notification.notification_type,
+            notification.message
+        )
 
 
-class Subject(ABC):
-    """Абстрактний об'єкт, за яким спостерігають"""
+class NotificationSubject:
+    """
+    Суб'єкт для сповіщень (Subject в Observer Pattern).
+    Коли створюється нове сповіщення, всі підписані спостерігачі отримують його.
+    """
     
     def __init__(self):
         self._observers: List[Observer] = []
+        # Додаємо стандартних спостерігачів
+        self.attach(UIObserver())
+        self.attach(LogObserver())
     
     def attach(self, observer: Observer):
         """Підписати спостерігача"""
         if observer not in self._observers:
             self._observers.append(observer)
+            logger.debug("Observer %s attached", observer.__class__.__name__)
     
     def detach(self, observer: Observer):
         """Відписати спостерігача"""
         if observer in self._observers:
             self._observers.remove(observer)
+            logger.debug("Observer %s detached", observer.__class__.__name__)
     
-    def notify(self, notification: Notification):
-        """Сповістити всіх спостерігачів"""
+    def notify_observers(self, notification: Notification):
+        """Сповістити всіх спостерігачів про нове сповіщення"""
         for observer in self._observers:
-            observer.update(notification)
-
-
-class NotificationSubject(Subject):
-    """
-    Суб'єкт для сповіщень.
-    Коли створюється нове сповіщення, всі підписані спостерігачі отримують його.
-    """
-    
-    def __init__(self):
-        super().__init__()
-        # Додаємо стандартних спостерігачів
-        self.attach(EmailObserver())
-        self.attach(SMSObserver())
-        self.attach(LogObserver())
-    
-    def create_notification(self, customer: CustomUser, notification_type: str, message: str):
-        """
-        Створити сповіщення та сповістити всіх спостерігачів.
-        
-        Args:
-            customer: Користувач, якому призначене сповіщення
-            notification_type: Тип сповіщення ('reminder', 'promo', 'bonus')
-            message: Текст сповіщення
-        """
-        notification = Notification.objects.create(
-            customer=customer,
-            notification_type=notification_type,
-            message=message
-        )
-        
-        # Сповіщаємо всіх спостерігачів
-        self.notify(notification)
-        
-        return notification
+            try:
+                observer.update(notification)
+            except Exception as e:
+                logger.error(
+                    "Observer %s failed: %s",
+                    observer.__class__.__name__,
+                    str(e)
+                )
 
 
 # Singleton для глобального доступу до NotificationSubject
@@ -125,8 +105,4 @@ class NotificationManager:
     def subject(self) -> NotificationSubject:
         """Отримати суб'єкт сповіщень"""
         return self._subject
-    
-    def create_notification(self, customer: CustomUser, notification_type: str, message: str):
-        """Створити сповіщення через Singleton"""
-        return self._subject.create_notification(customer, notification_type, message)
 

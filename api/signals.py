@@ -15,12 +15,15 @@ def section_post_save(sender, instance: Section, created, **kwargs):
         sport_type_map = {
             'fitness': 'Фітнес',
             'swimming': 'Плавання',
+            'pilates': 'Пілатес',
+            'volleyball': 'Волейбол',
+            'tennis': 'Теніс',
             'yoga': 'Йога',
         }
         level_map = {
-            'beginner': 'Початковий',
-            'intermediate': 'Середній',
-            'advanced': 'Просунутий',
+            'beginner': 'Початковий рівень',
+            'intermediate': 'Середній рівень',
+            'advanced': 'Просунутий рівень',
         }
         
         sport_type = sport_type_map.get(instance.sport_type, instance.sport_type.capitalize() if instance.sport_type else "")

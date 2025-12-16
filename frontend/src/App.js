@@ -9,17 +9,26 @@ import { authService } from './services/authService';
 
 // Layouts
 import ClientLayout from './pages/client/ClientLayout';
+import AdminLayout from './pages/admin/AdminLayout';
 
 // Client Pages
 import CatalogPage from './pages/client/CatalogPage';
-import SectionDetailPage from './pages/client/SectionDetailPage';
-import HallDetailPage from './pages/client/HallDetailPage';
 import ProfilePage from './pages/client/ProfilePage';
 import EditProfilePage from './pages/client/EditProfilePage';
 import BookingConfirmPage from './pages/client/BookingConfirmPage';
 import BookingsHistoryPage from './pages/client/BookingsHistoryPage';
 import NotificationsPage from './pages/client/NotificationsPage';
 import SubscriptionsPage from './pages/client/SubscriptionsPage';
+
+// Admin Pages
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminProfilePage from './pages/admin/AdminProfilePage';
+import CreateHallPage from './pages/admin/CreateHallPage';
+import CreateSectionPage from './pages/admin/CreateSectionPage';
+import ReservationsManagementPage from './pages/admin/ReservationsManagementPage';
+import EditEntitiesPage from './pages/admin/EditEntitiesPage';
+import EditHallPage from './pages/admin/EditHallPage';
+import EditSectionPage from './pages/admin/EditSectionPage';
 
 // Protected Route компонент
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -110,8 +119,6 @@ function App() {
           >
             <Route index element={<Navigate to="/client/catalog" replace />} />
             <Route path="catalog" element={<CatalogPage />} />
-            <Route path="sections/:id" element={<SectionDetailPage />} />
-            <Route path="halls/:id" element={<HallDetailPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="profile/edit" element={<EditProfilePage />} />
             <Route path="booking/confirm" element={<BookingConfirmPage />} />
@@ -122,13 +129,23 @@ function App() {
           
           {/* Адмін маршрути */}
           <Route
-            path="/admin/*"
+            path="/admin"
             element={
               <ProtectedRoute requireAdmin>
-                <div>Admin Area (буде додано)</div>
+                <AdminLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="profile" element={<AdminProfilePage />} />
+            <Route path="reservations" element={<ReservationsManagementPage />} />
+            <Route path="edit" element={<EditEntitiesPage />} />
+            <Route path="halls/create" element={<CreateHallPage />} />
+            <Route path="halls/:id/edit" element={<EditHallPage />} />
+            <Route path="sections/create" element={<CreateSectionPage />} />
+            <Route path="sections/:id/edit" element={<EditSectionPage />} />
+          </Route>
           
           {/* Перенаправлення на login за замовчуванням */}
           <Route path="/" element={<Navigate to="/login" replace />} />

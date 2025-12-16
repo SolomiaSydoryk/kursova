@@ -44,7 +44,6 @@ const BookingConfirmPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
-  const [bookingId, setBookingId] = useState(null);
   const [successTimeout, setSuccessTimeout] = useState(null);
   const [availableSubscriptions, setAvailableSubscriptions] = useState([]);
   const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
@@ -161,8 +160,7 @@ const BookingConfirmPage = () => {
 
       console.log('Sending booking data:', data); // Для дебагу
 
-      const response = await bookingService.createBooking(data);
-      setBookingId(response.id);
+      await bookingService.createBooking(data);
       setSuccess(true);
 
       // Перенаправляємо на профіль через 7 секунд або поки користувач не закриє
@@ -243,7 +241,17 @@ const BookingConfirmPage = () => {
                   {isSection && (
                     <>
                       <Typography variant="body1" sx={{ mb: 1 }}>
-                        <strong>Секція:</strong> {section.sport_type}
+                        <strong>Секція:</strong> {(() => {
+                          const labels = {
+                            fitness: 'Фітнес',
+                            swimming: 'Плавання',
+                            pilates: 'Пілатес',
+                            volleyball: 'Волейбол',
+                            tennis: 'Теніс',
+                            yoga: 'Йога',
+                          };
+                          return labels[section.sport_type] || section.sport_type;
+                        })()}
                       </Typography>
                       {section.trainer_name && (
                         <Typography variant="body1" sx={{ mb: 1 }}>
@@ -263,7 +271,17 @@ const BookingConfirmPage = () => {
                       </Typography>
                       {hall.event_type && (
                         <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Вид спорту:</strong> {hall.event_type}
+                          <strong>Вид спорту:</strong> {(() => {
+                            const labels = {
+                              fitness: 'Фітнес',
+                              swimming: 'Плавання',
+                              pilates: 'Пілатес',
+                              volleyball: 'Волейбол',
+                              tennis: 'Теніс',
+                              yoga: 'Йога',
+                            };
+                            return labels[hall.event_type] || hall.event_type;
+                          })()}
                         </Typography>
                       )}
                     </>

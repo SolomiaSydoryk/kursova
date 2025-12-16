@@ -65,6 +65,15 @@ const SectionFilters = ({ filters, onChange }) => {
             <MenuItem value="swimming" sx={{ fontSize: '0.875rem' }}>
               Плавання
             </MenuItem>
+            <MenuItem value="pilates" sx={{ fontSize: '0.875rem' }}>
+              Пілатес
+            </MenuItem>
+            <MenuItem value="volleyball" sx={{ fontSize: '0.875rem' }}>
+              Волейбол
+            </MenuItem>
+            <MenuItem value="tennis" sx={{ fontSize: '0.875rem' }}>
+              Теніс
+            </MenuItem>
             <MenuItem value="yoga" sx={{ fontSize: '0.875rem' }}>
               Йога
             </MenuItem>

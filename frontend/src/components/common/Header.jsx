@@ -44,10 +44,10 @@ const Header = ({ user }) => {
   };
 
   const displayName = user
-    ? user.is_staff
-      ? `Адміністратор ${user.first_name || ''} ${user.last_name || ''}`.trim() || `Адміністратор ${user.username}`
-      : `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username
+    ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username
     : 'Користувач';
+  
+  const isAdmin = user?.is_staff;
 
   return (
     <AppBar position="sticky" sx={{ backgroundColor: 'primary.main', zIndex: 1300 }}>
@@ -64,47 +64,63 @@ const Header = ({ user }) => {
               opacity: 0.8,
             },
           }}
-          onClick={() => navigate('/client/catalog')}
+          onClick={() => navigate(user?.is_staff ? '/admin/dashboard' : '/client/catalog')}
         >
           Спортивний центр
         </Typography>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              cursor: 'pointer',
-              padding: '6px 16px',
-              borderRadius: 2,
-              transition: 'background-color 0.2s',
-              minWidth: 'fit-content',
-              '&:hover': {
-                backgroundColor: '#153D33', 
-              },
-            }}
-            onClick={handleMenu}
-          >
-            <Avatar 
-              key={`header-${user?.photo || 'no-photo'}-${Date.now()}`} // Додаємо key для примусового оновлення
-              src={user?.photo || null}
-              sx={{ width: 36, height: 36, bgcolor: '#BB6830', color: '#FAF0E6', flexShrink: 0 }}
-            >
-              {user?.first_name?.[0] || user?.username?.[0] || 'U'}
-            </Avatar>
-            <Typography 
-              variant="body1" 
-              sx={{ 
-                color: '#FAF0E6', 
-                fontWeight: 500,
-                fontSize: '1rem',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {isAdmin && (
+              <Box
+                sx={{
+                  backgroundColor: '#153D33',
+                  color: '#FAF0E6',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  fontSize: '0.860rem',
+                  fontWeight: 400,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Адміністратор
+              </Box>
+            )}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                cursor: 'pointer',
+                padding: '6px 16px',
+                borderRadius: 2,
+                transition: 'background-color 0.2s',
+                minWidth: 'fit-content',
+                '&:hover': {
+                  backgroundColor: '#153D33', 
+                },
               }}
+              onClick={handleMenu}
             >
-              {displayName}
-            </Typography>
+              <Avatar 
+                key={`header-${user?.photo || 'no-photo'}-${Date.now()}`}
+                src={user?.photo || null}
+                sx={{ width: 36, height: 36, bgcolor: '#BB6830', color: '#FAF0E6', flexShrink: 0 }}
+              >
+                {user?.first_name?.[0] || user?.username?.[0] || 'U'}
+              </Avatar>
+              <Typography 
+                variant="body1" 
+                sx={{ 
+                  color: '#FAF0E6', 
+                  fontWeight: 500,
+                  fontSize: '1rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {displayName}
+              </Typography>
+            </Box>
           </Box>
 
           <Menu

@@ -13,16 +13,16 @@ export const bookingService = {
     return response.data;
   },
 
-  // Отримати бронювання за ID
-  getById: async (id) => {
-    const response = await api.get(`/reservations/${id}/`);
+  // Отримати всі бронювання (тільки для адмінів)
+  getAllReservations: async () => {
+    const response = await api.get('/bookings/all/');
     return response.data;
   },
 
-  // Скасувати бронювання
-  cancelBooking: async (id) => {
-    const response = await api.patch(`/reservations/${id}/`, {
-      reservation_status: 'cancelled',
+  // Оновити статус бронювання (тільки для адмінів)
+  updateReservationStatus: async (reservationId, status) => {
+    const response = await api.patch(`/bookings/${reservationId}/status/`, {
+      reservation_status: status,
     });
     return response.data;
   },

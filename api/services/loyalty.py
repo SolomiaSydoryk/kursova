@@ -14,8 +14,7 @@ class LoyaltyService:
     def calculate_points(amount: Decimal, multiplier: float = 1.0) -> Decimal:
         """
         Обчислити бонусні бали з суми і множника.
-        Множник має бути 0.01 для 1% (наприклад, 9 грн * 0.01 = 0.09 балів).
-        Повертає Decimal без округлення до цілого (0.09 залишається 0.09).
+        Повертає Decimal без округлення до цілого.
         """
         if amount is None:
             return Decimal('0.00')
@@ -32,17 +31,29 @@ class LoyaltyService:
         """
         Нарахувати бали за бронювання.
         Викликаємо після підтвердженої оплати (payment_status == PAID).
+        Бонуси нараховуються ТІЛЬКИ для секцій (не для залів).
         Повертає кількість нарахованих балів (Decimal).
         Для Premium картки: нараховуємо 1% від зниженої суми (якщо була знижка).
-        Множник bonus_multiplier вже містить правильне значення (0.01 для 1%).
         """
         if reservation is None or reservation.payment_status != Reservation.PAYMENT_PAID:
+            return Decimal('0.00')
+        
+        # Бонуси нараховуються тільки для секцій (не для залів)
+        if not reservation.section:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Points not awarded: reservation {reservation.id} is for a hall, not a section")
+            return Decimal('0.00')
+        
+        # Перевіряємо, чи бонуси вже нараховані (щоб не нараховувати повторно)
+        if reservation.points_awarded:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Points already awarded for reservation {reservation.id}")
             return Decimal('0.00')
 
         user = reservation.customer
         card = user.card
-        # Множник для нарахування бонусів (0.01 = 1% для Standard, 0.01 = 1% для Premium)
-        # bonus_multiplier має бути 0.01 для обох карток
         if card:
             # Отримуємо множник з картки, переконуємося що це Decimal
             card_multiplier = card.bonus_multiplier
@@ -66,7 +77,7 @@ class LoyaltyService:
         
         logger.info(f"Calculated points: {pts} (type: {type(pts)})")
 
-        # Перевіряємо, чи є бонуси для нарахування (навіть якщо це 0.09)
+        # Перевіряємо, чи є бонуси для нарахування
         if pts > Decimal('0.00'):
             with transaction.atomic():
                 u = CustomUser.objects.select_for_update().get(pk=user.pk)
@@ -93,7 +104,6 @@ class LoyaltyService:
                 Reservation.objects.filter(pk=reservation.pk).update(points_awarded=True)
                 
                 # Створюємо сповіщення про нарахування бонусів
-                # Форматуємо кількість бонусів (прибираємо зайві нулі, наприклад 0.09 замість 0.09)
                 pts_formatted = f"{pts:.2f}".rstrip('0').rstrip('.')
                 bonus_message = f"Вам нараховано {pts_formatted} бонусів!"
                 create_and_notify(

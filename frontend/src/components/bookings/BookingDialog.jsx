@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -30,19 +30,7 @@ const BookingDialog = ({ open, onClose, section, hall }) => {
   const isSection = !!section;
   const isHall = !!hall;
 
-  useEffect(() => {
-    if (open) {
-      loadAvailableTimeslots();
-    } else {
-      // Скидаємо стан при закритті
-      setSelectedDate(null);
-      setSelectedTimeslot(null);
-      setAvailableTimeslots([]);
-      setError(null);
-    }
-  }, [open, section, hall]);
-
-  const loadAvailableTimeslots = async () => {
+  const loadAvailableTimeslots = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -57,13 +45,34 @@ const BookingDialog = ({ open, onClose, section, hall }) => {
     } finally {
       setLoading(false);
     }
+  }, [section, hall]);
+
+  useEffect(() => {
+    if (open) {
+      loadAvailableTimeslots();
+    } else {
+      // Скидаємо стан при закритті
+      setSelectedDate(null);
+      setSelectedTimeslot(null);
+      setAvailableTimeslots([]);
+      setError(null);
+    }
+  }, [open, section, hall, loadAvailableTimeslots]);
+
+  // Функція для отримання дати у форматі YYYY-MM-DD з локальної дати (без конвертації в UTC)
+  const getLocalDateString = (date) => {
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   const handleDateSelect = (date) => {
     if (!date) return;
     
     // Перевіряємо, чи є доступні timeslots на цю дату
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = getLocalDateString(date);
     const slotsForDate = availableTimeslots.filter(
       slot => slot.date === dateStr
     );
@@ -77,7 +86,6 @@ const BookingDialog = ({ open, onClose, section, hall }) => {
         setError(null);
       } else {
         // Якщо немає timeslots на цю дату, все одно дозволяємо вибір
-        // (можливо, дата поза доступним діапазоном)
         setSelectedDate(date);
         setSelectedTimeslot(null);
         setError(null);
@@ -137,13 +145,13 @@ const BookingDialog = ({ open, onClose, section, hall }) => {
   // Для залу - перевіряємо, чи вибрана дата доступна
   const isDateAvailable = (date) => {
     if (!date) return false;
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = getLocalDateString(date);
     return availableDates.includes(dateStr);
   };
 
   // Отримуємо timeslots для вибраної дати
   const timeslotsForSelectedDate = selectedDate
-    ? groupedByDate[selectedDate.toISOString().split('T')[0]] || []
+    ? groupedByDate[getLocalDateString(selectedDate)] || []
     : [];
 
   // Для залу - перевіряємо чи зал доступний (не заброньований і немає секцій)
